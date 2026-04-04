@@ -3,31 +3,11 @@
 # =========================================================
 services:
 # #########################################################
-# DB ######################################################
-# #########################################################
-  db:
-    image: postgres:15
-    container_name: digitec_db
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: digitec
-      POSTGRES_PASSWORD: changeme
-      POSTGRES_DB: digitec
-    volumes:
-      - db-data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-
-# #########################################################
 # WEB #####################################################
 # #########################################################
   web:
-    build:
-      context: .
-      dockerfile: web/Dockerfile
-    container_name: digitec_web
-    depends_on:
-      - db
+    container_name: digitec_web_prod
+    image: yourdockerhubuser/digitec_web:latest
     environment:
       DATABASE_URL: "postgresql://digitec:changeme@db:5432/digitec?schema=public"
       NODE_ENV: production
@@ -36,8 +16,18 @@ services:
       - "3002:3002"
     restart: unless-stopped
 
-volumes:
-  db-data:
+# #########################################################
+# DB ######################################################
+# #########################################################
+  db:
+    container_name: digitec_db_prod
+    image: postgres:15
+    environment:
+      POSTGRES_USER: digitec
+      POSTGRES_PASSWORD: changeme
+      POSTGRES_DB: digitec
+    volumes:
+      - db-data:/var/lib/postgresql/data
 
 # =========================================================
 # Networks ================================================
@@ -47,4 +37,5 @@ volumes:
 # =========================================================
 # Volumes =================================================
 # =========================================================
-
+volumes:
+  db-data:

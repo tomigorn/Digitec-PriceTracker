@@ -121,6 +121,12 @@ web_modules/
 .env.production.local
 .env.local
 
+# pnpm store and cache
+.pnpm-store/
+**/.pnpm-store/
+web/.pnpm-store/
+
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache

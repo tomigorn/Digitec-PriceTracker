@@ -3,41 +3,31 @@
 # =========================================================
 services:
 # #########################################################
-# DB ######################################################
-# #########################################################
-  db:
-    image: postgres:15
-    container_name: digitec_db
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: digitec
-      POSTGRES_PASSWORD: changeme
-      POSTGRES_DB: digitec
-    volumes:
-      - db-data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-
-# #########################################################
 # WEB #####################################################
 # #########################################################
   web:
-    build:
-      context: .
-      dockerfile: web/Dockerfile
-    container_name: digitec_web
-    depends_on:
-      - db
+    container_name: digitec_web_local
+    volumes:
+      - ./web:/app:cached
+      - /app/node_modules
+    working_dir: /app
+    command: sh -lc "pnpm install && pnpm dev"
     environment:
+      CI: "true"
+      PNPM_CONFIG_CONFIRM_MODULES_PURGE: "false"
       DATABASE_URL: "postgresql://digitec:changeme@db:5432/digitec?schema=public"
-      NODE_ENV: production
+      NODE_ENV: development
       PORT: "3002"
     ports:
       - "3002:3002"
-    restart: unless-stopped
 
-volumes:
-  db-data:
+# #########################################################
+# DB ######################################################
+# #########################################################
+  db:
+    container_name: digitec_db_local
+    ports:
+      - "5432:5432"
 
 # =========================================================
 # Networks ================================================
