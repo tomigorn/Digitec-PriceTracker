@@ -1,9 +1,6 @@
 import Image from "next/image";
-import { checkDb } from "../lib/db";
 
-export default async function Home() {
-  const status = await checkDb();
-
+export default function Home() {
   return (
     <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
       <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
@@ -15,18 +12,6 @@ export default async function Home() {
           height={20}
           priority
         />
-
-        {/* DB connection status (server-side) */}
-        <div className="mb-4 w-full max-w-3xl text-center">
-          <p
-            className={`inline-block rounded-full px-4 py-2 text-sm font-medium ${
-              status.ok ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-            }`}
-          >
-            {status.ok ? `DB: ${status.message}` : `DB Error: ${status.message}`}
-          </p>
-        </div>
-
         <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
           <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
             To get started, edit the page.tsx file.
