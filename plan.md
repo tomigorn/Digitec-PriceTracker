@@ -263,19 +263,43 @@ rm web/test-db.mjs
 
 This phase connects everything: the frontend calls an API route, which queries PostgreSQL.
 
-### 3.1 Set the connection string
+### 3.1 Set up environment variables (secrets)
 
-Create a `.env.local` file so Next.js picks it up in dev mode:
+All passwords and connection strings live in **two** `.env` files — both are gitignored so secrets never get committed.
 
-```bash
-cd /home/pi/Documents/development/Digitec-PriceTracker/web
+Create the **root `.env`** (used by Docker Compose):
+
+Create `.env` in the project root:
+
+```
+COMPOSE_PROJECT_NAME=digitec-price-tracker
+
+# Database credentials (single source of truth)
+POSTGRES_USER=digitec
+POSTGRES_PASSWORD=changeme
+POSTGRES_DB=digitec
+
+# Connection strings
+DATABASE_URL=postgresql://digitec:changeme@db:5432/digitec
+DATABASE_URL_LOCAL=postgresql://digitec:changeme@127.0.0.1:5432/digitec
 ```
 
-Create `web/.env.local`:
+Create **`web/.env.local`** (used by Next.js in dev mode):
 
 ```
 DATABASE_URL=postgresql://digitec:changeme@127.0.0.1:5432/digitec
 ```
+
+Create a **`.dockerignore`** in the project root so secrets don't leak into Docker images:
+
+```
+web/node_modules
+web/.next
+web/.env.local
+.env
+```
+
+> **Important:** Both `.env` and `web/.env.local` are already in `.gitignore`. Never commit these files. When you change the password, update it in both files.
 
 ---
 
@@ -451,7 +475,9 @@ EXPOSE 3002
 CMD ["pnpm", "start"]
 ```
 
-Create `docker-compose.yml` in the project root:
+Create `docker-compose.yml` in the project root.
+
+Docker Compose automatically reads the `.env` file from the same directory. Use `${VARIABLE}` to reference secrets — no passwords hardcoded here:
 
 ```yaml
 services:
@@ -463,7 +489,7 @@ services:
     depends_on:
       - db
     environment:
-      DATABASE_URL: postgresql://digitec:changeme@db:5432/digitec
+      DATABASE_URL: ${DATABASE_URL}
       NODE_ENV: production
       PORT: 3002
     ports:
@@ -475,14 +501,25 @@ services:
     container_name: digitec_db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: digitec
-      POSTGRES_PASSWORD: changeme
-      POSTGRES_DB: digitec
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - db-data:/var/lib/postgresql/data
     # Uncomment to access DB from host:
     # ports:
     #   - 5432:5432
+
+  pgweb:
+    image: sosedoff/pgweb
+    container_name: digitec_pgweb
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      PGWEB_DATABASE_URL: ${DATABASE_URL}?sslmode=disable
+    ports:
+      - 8089:8081
 
 volumes:
   db-data:
@@ -520,8 +557,10 @@ curl http://localhost:3002/api/db-check
 **Check (containers running):**
 ```bash
 docker compose ps
-# expect: digitec_web (Up), digitec_db (Up)
+# expect: digitec_web (Up), digitec_db (Up), digitec_pgweb (Up)
 ```
+
+**Check (DB viewer):** Open `http://<pi-ip>:8081` in a browser. You should see the pgweb interface connected to your database — no login needed. You can browse tables, run queries, and export data.
 
 **Check (DB from host — optional):**
 
@@ -558,7 +597,7 @@ Now that the full stack works end-to-end in Docker, here is where each piece of 
 ```
 Digitec-PriceTracker/
 │
-├── docker-compose.yml          ← service orchestration (add redis, worker, traefik here later)
+├── docker-compose.yml          ← service orchestration (web, db, pgweb; add redis, worker, traefik later)
 │
 ├── web/                        ← the Next.js app (frontend + backend API)
 │   ├── app/
@@ -652,4 +691,5 @@ docker compose up --build
 | Reset DB (delete all data) | `docker compose down -v` |
 | View logs | `docker compose logs -f web` |
 | Open DB shell | `psql -h 127.0.0.1 -U digitec -d digitec` |
+| Open DB viewer (pgweb) | `http://<pi-ip>:8081` |
 | Install a new npm package | `cd web && pnpm add <package>` |

@@ -7,7 +7,7 @@ services:
     depends_on:
       - db
     environment:
-      DATABASE_URL: postgresql://digitec:changeme@db:5432/digitec
+      DATABASE_URL: ${DATABASE_URL}
       NODE_ENV: production
       PORT: 3002
     ports:
@@ -19,14 +19,25 @@ services:
     container_name: digitec_db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: digitec
-      POSTGRES_PASSWORD: changeme
-      POSTGRES_DB: digitec
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - db-data:/var/lib/postgresql/data
     # Uncomment to access DB from host:
     ports:
       - 5432:5432
+
+  pgweb:
+    image: sosedoff/pgweb
+    container_name: digitec_pgweb
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      PGWEB_DATABASE_URL: ${DATABASE_URL}?sslmode=disable
+    ports:
+      - 8089:8081
 
 volumes:
   db-data:
