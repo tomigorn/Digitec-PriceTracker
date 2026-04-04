@@ -413,43 +413,6 @@ sudo systemctl disable postgresql
 
 ### 4.2 Create Docker files
 
-Create `docker-compose.yml` in the project root:
-
-```yaml
-services:
-  web:
-    build:
-      context: .
-      dockerfile: web/Dockerfile
-    container_name: digitec_web
-    depends_on:
-      - db
-    environment:
-      DATABASE_URL: postgresql://digitec:changeme@db:5432/digitec
-      NODE_ENV: production
-      PORT: 3002
-    ports:
-      - 3002:3002
-    restart: unless-stopped
-
-  db:
-    image: postgres:15
-    container_name: digitec_db
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: digitec
-      POSTGRES_PASSWORD: changeme
-      POSTGRES_DB: digitec
-    volumes:
-      - db-data:/var/lib/postgresql/data
-    # Uncomment to access DB from host:
-    # ports:
-    #   - 5432:5432
-
-volumes:
-  db-data:
-```
-
 Create `web/Dockerfile`:
 
 ```dockerfile
@@ -486,6 +449,43 @@ RUN pnpm install --prod --frozen-lockfile
 
 EXPOSE 3002
 CMD ["pnpm", "start"]
+```
+
+Create `docker-compose.yml` in the project root:
+
+```yaml
+services:
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    container_name: digitec_web
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgresql://digitec:changeme@db:5432/digitec
+      NODE_ENV: production
+      PORT: 3002
+    ports:
+      - 3002:3002
+    restart: unless-stopped
+
+  db:
+    image: postgres:15
+    container_name: digitec_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: digitec
+      POSTGRES_PASSWORD: changeme
+      POSTGRES_DB: digitec
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    # Uncomment to access DB from host:
+    # ports:
+    #   - 5432:5432
+
+volumes:
+  db-data:
 ```
 
 ---
