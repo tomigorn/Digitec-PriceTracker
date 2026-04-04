@@ -3,6 +3,23 @@
 # =========================================================
 services:
 # #########################################################
+# WEB #####################################################
+# #########################################################
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    container_name: digitec_web
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgresql://digitec:changeme@db:5432/digitec?schema=public
+      NODE_ENV: production
+      PORT: 3002
+    ports:
+      - 3002:3002
+    restart: unless-stopped
+# #########################################################
 # DB ######################################################
 # #########################################################
   db:
@@ -15,29 +32,8 @@ services:
       POSTGRES_DB: digitec
     volumes:
       - db-data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-
-# #########################################################
-# WEB #####################################################
-# #########################################################
-  web:
-    build:
-      context: .
-      dockerfile: web/Dockerfile
-    container_name: digitec_web
-    depends_on:
-      - db
-    environment:
-      DATABASE_URL: "postgresql://digitec:changeme@db:5432/digitec?schema=public"
-      NODE_ENV: production
-      PORT: "3002"
-    ports:
-      - "3002:3002"
-    restart: unless-stopped
-
-volumes:
-  db-data:
+    # ports:
+    #   - 5432:5432
 
 # =========================================================
 # Networks ================================================
@@ -47,4 +43,6 @@ volumes:
 # =========================================================
 # Volumes =================================================
 # =========================================================
+volumes:
+  db-data:
 
