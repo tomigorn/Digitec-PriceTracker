@@ -588,9 +588,55 @@ docker compose down -v       # stop containers AND delete database volume (fresh
 
 ---
 
-## Phase 5 — Where to Write Your App Code
+## Phase 5 — Architecture & Where to Write Your App Code
 
-Now that the full stack works end-to-end in Docker, here is where each piece of your application goes:
+Now that the full stack works end-to-end in Docker, here is where each piece of your application goes. The project follows **onion architecture** (also called "clean architecture" or "ports & adapters"). The key idea: dependencies always point **inward** — outer layers know about inner layers, but inner layers never know about outer layers.
+
+### Onion Architecture Layers
+
+Think of concentric rings, from the inside out:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    INFRASTRUCTURE                        │
+│  (database clients, HTTP framework, external APIs)      │
+│                                                         │
+│   ┌─────────────────────────────────────────────────┐   │
+│   │              INTERFACE ADAPTERS                  │   │
+│   │  (API routes, frontend pages, CLI commands)     │   │
+│   │                                                 │   │
+│   │   ┌─────────────────────────────────────────┐   │   │
+│   │   │          APPLICATION SERVICES           │   │   │
+│   │   │  (use cases / business logic)           │   │   │
+│   │   │                                         │   │   │
+│   │   │   ┌─────────────────────────────────┐   │   │   │
+│   │   │   │        DOMAIN MODEL             │   │   │   │
+│   │   │   │  (types, entities, rules)       │   │   │   │
+│   │   │   └─────────────────────────────────┘   │   │   │
+│   │   └─────────────────────────────────────────┘   │   │
+│   └─────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Layer 1 — Domain Model** (innermost, no dependencies)
+Types, interfaces, and pure business rules. Example: "What is a Product? What is a PriceRecord? A price must be > 0." This layer has zero imports from any framework, database, or library. It's just TypeScript types and pure functions.
+→ Lives in: `web/lib/domain/`
+
+**Layer 2 — Application Services** (business logic / use cases)
+Orchestrates the domain. Contains the actual logic of the app: "Add a product to the tracking list", "Record a new price snapshot", "Get the price history for a product and compute the price drop." These functions accept and return domain types. They call repository interfaces (not concrete DB code) to read/write data.
+→ Lives in: `web/lib/services/`
+
+**Layer 3 — Interface Adapters** (API routes, frontend pages, worker entry points)
+Thin adapters that translate between the outside world and the application services. An API route validates the incoming HTTP request, calls a service function, and formats the response as JSON. A Next.js page calls a service function and renders HTML. **No business logic here** — only input validation, calling a service, and output formatting.
+→ Lives in: `web/app/api/` (API routes), `web/app/` (pages), `worker/src/index.ts`
+
+**Layer 4 — Infrastructure** (outermost, all the "dirty" details)
+Concrete implementations of external concerns: the PostgreSQL client, Prisma queries, Playwright scraper, Redis connection. The application services never import these directly — they depend on interfaces (e.g. a `ProductRepository` type), and infrastructure provides the concrete implementation.
+→ Lives in: `web/lib/db.ts`, `web/lib/repositories/`, `worker/src/scraper.ts`
+
+**The rule:** Each layer may only import from layers **inside** it (closer to the center), never from layers outside it. This means you can swap out PostgreSQL for another database, or replace an API route with a CLI command, without touching business logic.
+
+---
 
 ### Directory map
 
@@ -605,51 +651,80 @@ Digitec-PriceTracker/
 │   │   ├── page.tsx            ← home page (replace with your dashboard)
 │   │   ├── globals.css         ← global styles (Tailwind)
 │   │   │
-│   │   ├── products/           ← ⬅ CREATE: pages for tracked products
-│   │   │   ├── page.tsx        ←   product list page
+│   │   ├── products/           ← ⬅ CREATE: pages for tracked products          [LAYER 3 — Interface Adapter]
+│   │   │   ├── page.tsx        ←   product list page (calls service, renders)
 │   │   │   └── [id]/
 │   │   │       └── page.tsx    ←   single product detail + price chart
 │   │   │
-│   │   └── api/                ← ⬅ backend API routes
+│   │   └── api/                ← ⬅ backend API routes                          [LAYER 3 — Interface Adapter]
 │   │       ├── hello/route.ts  ←   test endpoint (created in Phase 2)
 │   │       ├── db-check/route.ts ← health check (created in Phase 3)
-│   │       ├── products/       ← ⬅ CREATE: CRUD endpoints for products
+│   │       ├── products/       ← ⬅ CREATE: validate input → call service → return JSON
 │   │       │   └── route.ts    ←   GET /api/products, POST /api/products
-│   │       └── prices/         ← ⬅ CREATE: price history endpoints
+│   │       └── prices/         ← ⬅ CREATE: validate input → call service → return JSON
 │   │           └── route.ts    ←   GET /api/prices?productId=xxx
 │   │
-│   ├── lib/                    ← shared utilities
-│   │   ├── db.ts               ← database connection (already exists)
-│   │   └── queries.ts          ← ⬅ CREATE: reusable SQL queries / data access functions
+│   ├── lib/
+│   │   ├── domain/             ← ⬅ CREATE: pure types and business rules       [LAYER 1 — Domain Model]
+│   │   │   └── types.ts        ←   Product, PriceRecord interfaces; validation rules
+│   │   │
+│   │   ├── services/           ← ⬅ CREATE: business logic / use cases          [LAYER 2 — Application Services]
+│   │   │   ├── product-service.ts ← addProduct, getProduct, listProducts
+│   │   │   └── price-service.ts   ← recordPrice, getPriceHistory, computePriceDrop
+│   │   │
+│   │   ├── repositories/       ← ⬅ CREATE: data access (implements interfaces) [LAYER 4 — Infrastructure]
+│   │   │   ├── product-repo.ts ←   SQL queries for products (INSERT, SELECT, etc.)
+│   │   │   └── price-repo.ts  ←   SQL queries for price records
+│   │   │
+│   │   └── db.ts               ← database connection pool                      [LAYER 4 — Infrastructure]
 │   │
-│   ├── components/             ← ⬅ CREATE: React components
+│   ├── components/             ← ⬅ CREATE: React components                    [LAYER 3 — Interface Adapter]
 │   │   ├── PriceChart.tsx      ←   chart showing price over time
 │   │   └── ProductCard.tsx     ←   product summary card
 │   │
 │   └── public/                 ← static assets (images, icons)
 │
-├── prisma/                     ← ⬅ CREATE: Prisma schema + migrations (when you switch from raw pg)
+├── prisma/                     ← ⬅ CREATE: Prisma schema + migrations          [LAYER 4 — Infrastructure]
 │   └── schema.prisma           ←   define Product, PriceRecord models
 │
-└── worker/                     ← ⬅ CREATE LATER: scraper + BullMQ worker (separate service)
+└── worker/                     ← ⬅ CREATE LATER: scraper + BullMQ worker
     ├── package.json
     ├── Dockerfile
     └── src/
-        ├── index.ts            ←   worker entry point (connects to Redis + BullMQ)
-        └── scraper.ts          ←   Playwright scraper for Digitec
+        ├── index.ts            ←   worker entry point (queue consumer)          [LAYER 3 — Interface Adapter]
+        └── scraper.ts          ←   Playwright scraper for Digitec               [LAYER 4 — Infrastructure]
 ```
+
+### How a request flows through the layers
+
+Example: `POST /api/products` (add a product to track)
+
+```
+Browser ──▶ API Route (Layer 3)        ──▶ product-service (Layer 2)   ──▶ product-repo (Layer 4)
+            • parse request body            • validate business rules       • INSERT INTO products
+            • check required fields         • check for duplicates          • return saved row
+            • call service                  • call repository
+            • return JSON response          • return domain object
+```
+
+The API route never touches SQL. The service never touches `NextRequest`. The repository never decides what HTTP status to return.
+
+---
 
 ### What to do next (in order)
 
-| # | Task | Where |
-|---|------|-------|
-| 1 | **Design the database schema** — define `Product` and `PriceRecord` tables | `prisma/schema.prisma` or raw SQL |
-| 2 | **Create the tables** — run migration or execute SQL | `psql` or `pnpm prisma migrate dev` |
-| 3 | **Build API routes** — CRUD for products, GET for price history | `web/app/api/products/route.ts`, `web/app/api/prices/route.ts` |
-| 4 | **Build the frontend pages** — product list, product detail with chart | `web/app/products/page.tsx`, `web/app/products/[id]/page.tsx` |
-| 5 | **Add the scraper worker** — Playwright script that fetches Digitec prices | `worker/src/scraper.ts` |
-| 6 | **Add Redis + BullMQ** — schedule the scraper to run periodically | `docker-compose.yml` → add `redis` service, `worker/src/index.ts` |
-| 7 | **Add Traefik** — reverse proxy with HTTPS | `docker-compose.yml` → add `traefik` service |
+| # | Task | Layer | Where |
+|---|------|-------|-------|
+| 1 | **Define domain types** — Product, PriceRecord interfaces | 1 — Domain | `web/lib/domain/types.ts` |
+| 2 | **Design the database schema** — define tables matching domain types | 4 — Infrastructure | `prisma/schema.prisma` or raw SQL |
+| 3 | **Create the tables** — run migration or execute SQL | 4 — Infrastructure | `psql` or `pnpm prisma migrate dev` |
+| 4 | **Build repositories** — data access functions for products and prices | 4 — Infrastructure | `web/lib/repositories/product-repo.ts`, `price-repo.ts` |
+| 5 | **Build services** — business logic that uses repositories | 2 — Application | `web/lib/services/product-service.ts`, `price-service.ts` |
+| 6 | **Build API routes** — thin adapters: validate input, call service, return JSON | 3 — Interface | `web/app/api/products/route.ts`, `web/app/api/prices/route.ts` |
+| 7 | **Build the frontend pages** — call services (server components) or API routes (client components) | 3 — Interface | `web/app/products/page.tsx`, `web/app/products/[id]/page.tsx` |
+| 8 | **Add the scraper worker** — Playwright script that fetches Digitec prices | 4 — Infrastructure | `worker/src/scraper.ts` |
+| 9 | **Add Redis + BullMQ** — schedule the scraper to run periodically | 4 — Infrastructure | `docker-compose.yml` → add `redis` service, `worker/src/index.ts` |
+| 10 | **Add Traefik** — reverse proxy with HTTPS | 4 — Infrastructure | `docker-compose.yml` → add `traefik` service |
 
 ### Development workflow
 
