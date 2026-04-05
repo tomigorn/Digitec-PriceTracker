@@ -560,7 +560,7 @@ docker compose ps
 # expect: digitec_web (Up), digitec_db (Up), digitec_pgweb (Up)
 ```
 
-**Check (DB viewer):** Open `http://<pi-ip>:8081` in a browser. You should see the pgweb interface connected to your database — no login needed. You can browse tables, run queries, and export data.
+**Check (DB viewer):** Open `http://<pi-ip>:8089` in a browser. You should see the pgweb interface connected to your database — no login needed. You can browse tables, run queries, and export data.
 
 **Check (DB from host — optional):**
 
@@ -691,5 +691,5 @@ docker compose up --build
 | Reset DB (delete all data) | `docker compose down -v` |
 | View logs | `docker compose logs -f web` |
 | Open DB shell | `psql -h 127.0.0.1 -U digitec -d digitec` |
-| Open DB viewer (pgweb) | `http://<pi-ip>:8081` |
+| Open DB viewer (pgweb) | `http://<pi-ip>:8089` |
 | Install a new npm package | `cd web && pnpm add <package>` |
